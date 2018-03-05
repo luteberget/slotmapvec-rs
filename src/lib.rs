@@ -1,7 +1,9 @@
 //! A slot map: `Vec<T>`-like collection with stable indices
 //! Indices are re-used by a versioning tag on the contents.
 
-use std::{fmt, mem};
+use std::mem;
+use std::ops;
+use std::iter::IntoIterator;
 
 
 #[derive(Clone,Debug)]
@@ -100,19 +102,19 @@ impl<T> SlotMapVec<T> {
         self.len == 0
     }
 
-    // // pub fn iter(&self) -> Iter<T> {
-    // //     Iter {
-    // //         entries: self.entries.iter(),
-    // //         curr: 0,
-    // //     }
-    // // }
+    pub fn iter(&self) -> Iter<T> {
+        Iter {
+            entries: self.entries.iter(),
+            curr: 0,
+        }
+    }
 
-    // // pub fn iter_mut(&self) -> IterMut<T> {
-    // //     IterMut {
-    // //         entries: self.entries.iter_mut(),
-    // //         curr: 0,
-    // //     }
-    // // }
+    pub fn iter_mut(&mut self) -> IterMut<T> {
+        IterMut {
+            entries: self.entries.iter_mut(),
+            curr: 0,
+        }
+    }
 
     pub fn get(&self, key: SlotMapIndex) -> Option<&T> {
         match self.entries.get(key.slot as usize) {
@@ -145,7 +147,7 @@ impl<T> SlotMapVec<T> {
             });
             self.next_free += 1;
             self.len += 1;
-            SlotMapIndex { slot: slot as u32, version: version }
+            SlotMapIndex { slot: slot as u32, version }
         } else {
             let slot = self.next_free;
             let version = self.entries[slot].version + 1;
@@ -158,7 +160,7 @@ impl<T> SlotMapVec<T> {
                 _ => unreachable!(),
             }
             self.len += 1;
-            SlotMapIndex { slot: slot as u32, version: version }
+            SlotMapIndex { slot: slot as u32, version }
         }
     }
 
@@ -193,6 +195,88 @@ impl<T> SlotMapVec<T> {
     }
 }
 
+impl<T> ops::Index<SlotMapIndex> for SlotMapVec<T> {
+    type Output=T;
+    fn index(&self, key: SlotMapIndex) -> &T {
+        match self.entries[key.slot as usize] {
+            Entry { 
+                ref version, 
+                content: Occupation::Occupied(ref obj) } => {
+                if *version != key.version { panic!("invalid key") }
+                else { obj }
+            }
+            _ => panic!("invalid key"),
+        }
+    }
+}
+
+impl<T> ops::IndexMut<SlotMapIndex> for SlotMapVec<T> {
+    fn index_mut(&mut self, key: SlotMapIndex) -> &mut T {
+        match self.entries[key.slot as usize] {
+            Entry { 
+                ref version, 
+                content: Occupation::Occupied(ref mut obj) } => {
+                if *version != key.version { panic!("invalid key") }
+                else { obj }
+            }
+            _ => panic!("invalid key"),
+        }
+    }
+}
+
+
+impl<'a, T> IntoIterator for &'a SlotMapVec<T> {
+    type Item = (SlotMapIndex, &'a T);
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Iter<'a, T> {
+        self.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut SlotMapVec<T> {
+    type Item = (SlotMapIndex, &'a mut T);
+    type IntoIter = IterMut<'a, T>;
+
+    fn into_iter(self) -> IterMut<'a, T> {
+        self.iter_mut()
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = (SlotMapIndex, &'a T);
+
+    fn next(&mut self) -> Option<(SlotMapIndex, &'a T)> {
+        while let Some(entry) = self.entries.next() {
+            let key = SlotMapIndex { slot: self.curr as u32, version: entry.version };
+            self.curr += 1;
+
+            if let Occupation::Occupied(ref value) = entry.content {
+                return Some((key, value));
+            }
+        }
+
+        None
+    }
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = (SlotMapIndex, &'a mut T);
+
+    fn next(&mut self) -> Option<(SlotMapIndex, &'a mut T)> {
+        while let Some(entry) = self.entries.next() {
+            let key = SlotMapIndex { slot: self.curr as u32, version: entry.version };
+            self.curr += 1;
+
+            if let Occupation::Occupied(ref mut value) = entry.content {
+                return Some((key, value));
+            }
+        }
+
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,7 +302,7 @@ mod tests {
     #[test]
     fn size_it() {
         let mut x = SlotMapVec::new();
-        let slot = x.insert(123213);
+        let _slot = x.insert(123213);
         let slotsize = std::mem::size_of::<SlotMapIndex>();
         println!("sizeof(SlotMapIndex) == {}", slotsize);
 
@@ -230,5 +314,27 @@ mod tests {
         println!("sizeof(Entry2<Box<u64>>) == {}", std::mem::size_of::<Entry2<Box<u64>>>());
         println!("sizeof(Entry2<u32>) == {}", std::mem::size_of::<Entry2<u32>>());
         println!("sizeof(Entry2<Box<u32>>) == {}", std::mem::size_of::<Entry2<Box<u32>>>());
+    }
+    
+    #[test]
+    fn iterator() {
+        let mut x = SlotMapVec::new();
+        x.insert(9.0);
+        x.insert(7.0);
+        x.insert(5.0);
+        let three = x.insert(3.0);
+        x.insert(-3.0);
+        let low = x.insert(-8.0);
+        x.insert(-6.0);
+
+
+        for (_,v) in x.iter_mut() { *v += 1.0; }
+        x.remove(three);
+        x.insert(3.5);
+        x.insert(3.0);
+        x.remove(low);
+        for v in x.iter() {
+            println!("val: {:?}",v);
+        }
     }
 }
