@@ -15,8 +15,8 @@ pub struct SlotMapVec<T> {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct SlotMapIndex {
-    slot :u32,
-    version :u32,
+    slot: u32,
+    version: u32,
 }
 
 impl<T> Default for SlotMapVec<T> {
@@ -27,15 +27,15 @@ impl<T> Default for SlotMapVec<T> {
 
 #[derive(Clone,Debug)]
 pub struct Entry<T> {
-    version :u32,
-    content :Occupation<T>,
+    version: u32,
+    content: Occupation<T>,
 }
 
 // TODO: switch to this entry to save one word.
 #[derive(Clone,Debug)]
 pub enum Entry2<T> {
-    Free(u32,u32),
-    Occupied(u32,T),
+    Free(u32, u32),
+    Occupied(u32, T),
 }
 
 #[derive(Clone,Debug)]
@@ -88,11 +88,11 @@ impl<T> SlotMapVec<T> {
     //     let need = self.len() + additional;
     //     self.entries.reserve(need);
     // }
-    //pub fn clear(&mut self) {
+    // pub fn clear(&mut self) {
     //    self.entries.clear();
     //    self.len = 0;
     //    self.
-    //}
+    //
 
     pub fn len(&self) -> usize {
         self.len
@@ -118,20 +118,26 @@ impl<T> SlotMapVec<T> {
 
     pub fn get(&self, key: SlotMapIndex) -> Option<&T> {
         match self.entries.get(key.slot as usize) {
-            Some(&Entry { 
-                ref version, 
-                content: Occupation::Occupied(ref obj) }) 
-                  => if *version == key.version { Some(obj) } else { None },
+            Some(&Entry { ref version, content: Occupation::Occupied(ref obj) }) => {
+                if *version == key.version {
+                    Some(obj)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
 
     pub fn get_mut(&mut self, key: SlotMapIndex) -> Option<&mut T> {
         match self.entries.get_mut(key.slot as usize) {
-            Some(&mut Entry { 
-                ref version, 
-                content: Occupation::Occupied(ref mut obj) }) 
-                  => if *version == key.version { Some(obj) } else { None },
+            Some(&mut Entry { ref version, content: Occupation::Occupied(ref mut obj) }) => {
+                if *version == key.version {
+                    Some(obj)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -140,38 +146,47 @@ impl<T> SlotMapVec<T> {
     pub fn insert(&mut self, val: T) -> SlotMapIndex {
         if self.next_free == self.entries.len() {
             let slot = self.next_free;
-            let version = 0;
-            self.entries.push( Entry { 
-                version, 
-                content: Occupation::Occupied(val) 
+            self.entries.push(Entry {
+                version: 0,
+                content: Occupation::Occupied(val),
             });
             self.next_free += 1;
             self.len += 1;
-            SlotMapIndex { slot: slot as u32, version }
+            SlotMapIndex {
+                slot: slot as u32,
+                version: 0,
+            }
         } else {
             let slot = self.next_free;
             let version = self.entries[slot].version + 1;
             let prev = mem::replace(&mut self.entries[slot],
-                        Entry { version, content: Occupation::Occupied(val) });
+                                    Entry {
+                                        version: version,
+                                        content: Occupation::Occupied(val),
+                                    });
             match prev {
                 Entry { content: Occupation::Free(next), .. } => {
                     self.next_free = next;
                 }
-                _ => unreachable!(),
+                _ => panic!("inconsistent internal state in SlotMapVec"),
             }
             self.len += 1;
-            SlotMapIndex { slot: slot as u32, version }
+            SlotMapIndex {
+                slot: slot as u32,
+                version: version,
+            }
         }
     }
 
     pub fn remove(&mut self, key: SlotMapIndex) -> Option<T> {
         match self.entries.get_mut(key.slot as usize) {
             Some(entry) => {
-                if entry.version != key.version { None }
-                else if let Occupation::Free(_) = entry.content { None }
-                else {
-                    let prev = mem::replace(&mut entry.content,
-                                 Occupation::Free(self.next_free));
+                if entry.version != key.version {
+                    None
+                } else if let Occupation::Free(_) = entry.content {
+                    None
+                } else {
+                    let prev = mem::replace(&mut entry.content, Occupation::Free(self.next_free));
                     self.next_free = key.slot as usize;
                     self.len -= 1;
                     match prev {
@@ -179,31 +194,31 @@ impl<T> SlotMapVec<T> {
                         _ => unreachable!(),
                     }
                 }
-            },
+            }
             _ => None,
         }
     }
 
     pub fn contains(&self, key: SlotMapIndex) -> bool {
         match self.entries.get(key.slot as usize) {
-            Some(&Entry { 
-                ref version, 
-                content: Occupation::Occupied(_) }) 
-                  => *version == key.version,
+            Some(&Entry { ref version, content: Occupation::Occupied(_) }) => {
+                *version == key.version
+            }
             _ => false,
         }
     }
 }
 
 impl<T> ops::Index<SlotMapIndex> for SlotMapVec<T> {
-    type Output=T;
+    type Output = T;
     fn index(&self, key: SlotMapIndex) -> &T {
         match self.entries[key.slot as usize] {
-            Entry { 
-                ref version, 
-                content: Occupation::Occupied(ref obj) } => {
-                if *version != key.version { panic!("invalid key") }
-                else { obj }
+            Entry { ref version, content: Occupation::Occupied(ref obj) } => {
+                if *version != key.version {
+                    panic!("invalid key")
+                } else {
+                    obj
+                }
             }
             _ => panic!("invalid key"),
         }
@@ -213,11 +228,12 @@ impl<T> ops::Index<SlotMapIndex> for SlotMapVec<T> {
 impl<T> ops::IndexMut<SlotMapIndex> for SlotMapVec<T> {
     fn index_mut(&mut self, key: SlotMapIndex) -> &mut T {
         match self.entries[key.slot as usize] {
-            Entry { 
-                ref version, 
-                content: Occupation::Occupied(ref mut obj) } => {
-                if *version != key.version { panic!("invalid key") }
-                else { obj }
+            Entry { ref version, content: Occupation::Occupied(ref mut obj) } => {
+                if *version != key.version {
+                    panic!("invalid key")
+                } else {
+                    obj
+                }
             }
             _ => panic!("invalid key"),
         }
@@ -248,7 +264,10 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
     fn next(&mut self) -> Option<(SlotMapIndex, &'a T)> {
         while let Some(entry) = self.entries.next() {
-            let key = SlotMapIndex { slot: self.curr as u32, version: entry.version };
+            let key = SlotMapIndex {
+                slot: self.curr as u32,
+                version: entry.version,
+            };
             self.curr += 1;
 
             if let Occupation::Occupied(ref value) = entry.content {
@@ -265,7 +284,10 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
     fn next(&mut self) -> Option<(SlotMapIndex, &'a mut T)> {
         while let Some(entry) = self.entries.next() {
-            let key = SlotMapIndex { slot: self.curr as u32, version: entry.version };
+            let key = SlotMapIndex {
+                slot: self.curr as u32,
+                version: entry.version,
+            };
             self.curr += 1;
 
             if let Occupation::Occupied(ref mut value) = entry.content {
@@ -306,16 +328,24 @@ mod tests {
         let slotsize = std::mem::size_of::<SlotMapIndex>();
         println!("sizeof(SlotMapIndex) == {}", slotsize);
 
-        println!("sizeof(SlotMap<String>) == {}", std::mem::size_of::<SlotMapVec<String>>());
-        println!("sizeof(Entry<String>) == {}", std::mem::size_of::<Entry<String>>());
-        println!("sizeof(Entry<u64>) == {}", std::mem::size_of::<Entry<u64>>());
-        println!("sizeof(Entry<Box<u64>>) == {}", std::mem::size_of::<Entry<Box<u64>>>());
-        println!("sizeof(Entry2<u64>) == {}", std::mem::size_of::<Entry2<u64>>());
-        println!("sizeof(Entry2<Box<u64>>) == {}", std::mem::size_of::<Entry2<Box<u64>>>());
-        println!("sizeof(Entry2<u32>) == {}", std::mem::size_of::<Entry2<u32>>());
-        println!("sizeof(Entry2<Box<u32>>) == {}", std::mem::size_of::<Entry2<Box<u32>>>());
+        println!("sizeof(SlotMap<String>) == {}",
+                 std::mem::size_of::<SlotMapVec<String>>());
+        println!("sizeof(Entry<String>) == {}",
+                 std::mem::size_of::<Entry<String>>());
+        println!("sizeof(Entry<u64>) == {}",
+                 std::mem::size_of::<Entry<u64>>());
+        println!("sizeof(Entry<Box<u64>>) == {}",
+                 std::mem::size_of::<Entry<Box<u64>>>());
+        println!("sizeof(Entry2<u64>) == {}",
+                 std::mem::size_of::<Entry2<u64>>());
+        println!("sizeof(Entry2<Box<u64>>) == {}",
+                 std::mem::size_of::<Entry2<Box<u64>>>());
+        println!("sizeof(Entry2<u32>) == {}",
+                 std::mem::size_of::<Entry2<u32>>());
+        println!("sizeof(Entry2<Box<u32>>) == {}",
+                 std::mem::size_of::<Entry2<Box<u32>>>());
     }
-    
+
     #[test]
     fn iterator() {
         let mut x = SlotMapVec::new();
@@ -328,13 +358,15 @@ mod tests {
         x.insert(-6.0);
 
 
-        for (_,v) in x.iter_mut() { *v += 1.0; }
+        for (_, v) in x.iter_mut() {
+            *v += 1.0;
+        }
         x.remove(three);
         x.insert(3.5);
         x.insert(3.0);
         x.remove(low);
         for v in x.iter() {
-            println!("val: {:?}",v);
+            println!("val: {:?}", v);
         }
     }
 }
