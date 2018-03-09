@@ -1,12 +1,12 @@
 //! Slot map: array storage with persistent indices
 //!
 //! `Vec<T>`-like collection with stable indices.
-//! The underlying array's indices are re-used by incementing a 
+//! The underlying array's indices are re-used by incementing a
 //! versioning tag in the index type.
 //!
 //! The `SlotMapIndex` type consists of a `u32` for storing the
 //! index into the underlying array, and a `u32` for storing
-//! the version. Deleting and inserting more times than the maximum 
+//! the version. Deleting and inserting more times than the maximum
 //! value of `u32` will cause overflow and index conflict bugs.
 //!
 //! # Examples
@@ -34,9 +34,9 @@ use std::iter::IntoIterator;
 
 
 /// Slot map: array storage with persistent indices
-/// 
+///
 /// See [module documentation] for more details.
-/// 
+///
 /// [module documentation]: index.html
 #[derive(Clone,Debug)]
 pub struct SlotMapVec<T> {
@@ -174,7 +174,7 @@ impl<T> SlotMapVec<T> {
         }
     }
 
-    /// Return an iterator over mutable references to all elements 
+    /// Return an iterator over mutable references to all elements
     /// of the map along with their index.
     ///
     /// # Examples
