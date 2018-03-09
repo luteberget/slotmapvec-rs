@@ -1,6 +1,11 @@
 [package]
 name = "slotmapvec"
 version = "0.1.0"
+license = "MIT"
 authors = ["Bjørnar Luteberget <luteberget@gmail.com>"]
-
-[dependencies]
+description = "Array storage with persistent indices"
+homepage = "https://github.com/luteberget/slotmapvec-rs"
+repository = "https://github.com/luteberget/slotmapvec-rs"
+readme = "README.md"
+keywords = ["slotmap","slot","map"]
+categories = ["data-structures"]

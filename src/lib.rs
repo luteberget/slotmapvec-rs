@@ -1,18 +1,58 @@
-//! A slot map: `Vec<T>`-like collection with stable indices
-//! Indices are re-used by a versioning tag on the contents.
+//! Slot map: array storage with persistent indices
+//!
+//! `Vec<T>`-like collection with stable indices.
+//! The underlying array's indices are re-used by incementing a 
+//! versioning tag in the index type.
+//!
+//! The `SlotMapIndex` type consists of a `u32` for storing the
+//! index into the underlying array, and a `u32` for storing
+//! the version. Deleting and inserting more times than the maximum 
+//! value of `u32` will cause overflow and index conflict bugs.
+//!
+//! # Examples
+//!
+//! ```
+//! # use slotmapvec::*;
+//! let mut map = SlotMapVec::new();
+//!
+//! map.insert(123213);
+//! let idx = map.insert(34234);
+//! map.insert(654654);
+//!
+//! map.remove(idx);
+//! let idx2 = map.insert(999);
+//!
+//! println!("Map {:?}", map);
+//! println!("Index 2 {:?}", idx2);
+//! ```
+
+#![crate_name = "slotmapvec"]
 
 use std::mem;
 use std::ops;
 use std::iter::IntoIterator;
 
 
+/// Slot map: array storage with persistent indices
+/// 
+/// See [module documentation] for more details.
+/// 
+/// [module documentation]: index.html
 #[derive(Clone,Debug)]
 pub struct SlotMapVec<T> {
+    // Backing storage
     entries: Vec<Entry<T>>,
+
+    // Offset of the next free slot. If there are no
+    // free slots, this value is equal to the number of elements.
     next_free: usize,
+
+    // Number of elements stored in the map.
+    // Number of free slots can be calculated by taking entries.len() - len.
     len: usize,
 }
 
+/// An index into a `SlotMapVec`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct SlotMapIndex {
     slot: u32,
@@ -25,30 +65,32 @@ impl<T> Default for SlotMapVec<T> {
     }
 }
 
+// TODO: switch to this entry type to save one word.
+//  #[derive(Clone,Debug)]
+//   pub enum Entry<T> {
+//       Free(u32, u32),
+//       Occupied(u32, T),
+//   }
+
 #[derive(Clone,Debug)]
-pub struct Entry<T> {
+struct Entry<T> {
     version: u32,
     content: Occupation<T>,
 }
 
-// TODO: switch to this entry to save one word.
 #[derive(Clone,Debug)]
-pub enum Entry2<T> {
-    Free(u32, u32),
-    Occupied(u32, T),
-}
-
-#[derive(Clone,Debug)]
-pub enum Occupation<T> {
+enum Occupation<T> {
     Free(usize),
     Occupied(T),
 }
 
+/// An iterator over the values stored in a `SlotMapVec`.
 pub struct Iter<'a, T: 'a> {
     entries: std::slice::Iter<'a, Entry<T>>,
     curr: usize,
 }
 
+/// A mutable iterator over the values stored in a `SlotMapVec`.
 pub struct IterMut<'a, T: 'a> {
     entries: std::slice::IterMut<'a, Entry<T>>,
     curr: usize,
@@ -69,6 +111,7 @@ impl<T> SlotMapVec<T> {
         SlotMapVec::with_capacity(0)
     }
 
+    /// Construct a new `SlotMapVec` with the specified capacity.
     pub fn with_capacity(capacity: usize) -> SlotMapVec<T> {
         SlotMapVec {
             entries: Vec::with_capacity(capacity),
@@ -77,6 +120,7 @@ impl<T> SlotMapVec<T> {
         }
     }
 
+    /// Returns the number of values the map can store without reallocating.
     pub fn capacity(&self) -> usize {
         self.entries.capacity()
     }
@@ -94,14 +138,35 @@ impl<T> SlotMapVec<T> {
     //    self.
     //
 
+    /// Returns the number of stored values.
     pub fn len(&self) -> usize {
         self.len
     }
 
+    /// Returns `true` if no values are stored in the map.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    /// Return an iterator over all elements of the map along with
+    /// their index.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slotmapvec::*;
+    /// let mut map = SlotMapVec::new();
+    ///
+    /// for i in 0..3 {
+    ///   map.insert(i);
+    /// }
+    ///
+    /// let mut i = 0;
+    /// for (idx,val) in map.iter() {
+    ///   assert_eq!(*val, i);
+    ///   i += 1;
+    /// }
+    /// ```
     pub fn iter(&self) -> Iter<T> {
         Iter {
             entries: self.entries.iter(),
@@ -109,6 +174,26 @@ impl<T> SlotMapVec<T> {
         }
     }
 
+    /// Return an iterator over mutable references to all elements 
+    /// of the map along with their index.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slotmapvec::*;
+    /// let mut map = SlotMapVec::new();
+    ///
+    /// for i in 0..3 {
+    ///   map.insert(i);
+    /// }
+    ///
+    /// let mut i = 0;
+    /// for (idx,val) in map.iter_mut() {
+    ///   *val *= 2;
+    ///   assert_eq!(*val, i);
+    ///   i += 2;
+    /// }
+    /// ```
     pub fn iter_mut(&mut self) -> IterMut<T> {
         IterMut {
             entries: self.entries.iter_mut(),
@@ -116,6 +201,10 @@ impl<T> SlotMapVec<T> {
         }
     }
 
+    /// Returns a reference to the value associated with the given key.
+    ///
+    /// If the given key is not associated with a values, then `None` is
+    /// returned.
     pub fn get(&self, key: SlotMapIndex) -> Option<&T> {
         match self.entries.get(key.slot as usize) {
             Some(&Entry { ref version, content: Occupation::Occupied(ref obj) }) => {
@@ -129,6 +218,10 @@ impl<T> SlotMapVec<T> {
         }
     }
 
+    /// Returns a mutable reference to the value associated with the given key.
+    ///
+    /// If the given key is not associated with a values, then `None` is
+    /// returned.
     pub fn get_mut(&mut self, key: SlotMapIndex) -> Option<&mut T> {
         match self.entries.get_mut(key.slot as usize) {
             Some(&mut Entry { ref version, content: Occupation::Occupied(ref mut obj) }) => {
@@ -143,6 +236,20 @@ impl<T> SlotMapVec<T> {
     }
 
 
+    /// Insert a value into the map, returning the index to the value.
+    ///
+    /// The returned index will always refer uniquely to the inserted value
+    /// (though it may be mutated), even after objects have been deleted
+    /// and inserted into the same storage slot.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slotmapvec::*;
+    /// let mut map = SlotMapVec::new();
+    /// let key = map.insert("hello");
+    /// assert_eq!(map[key], "hello");
+    /// ```
     pub fn insert(&mut self, val: T) -> SlotMapIndex {
         if self.next_free == self.entries.len() {
             let slot = self.next_free;
@@ -178,6 +285,10 @@ impl<T> SlotMapVec<T> {
         }
     }
 
+    /// Removes and returs the value associated with the given key.
+    ///
+    /// The key is never reused in this map, except if the underlying
+    /// storage type overflows.
     pub fn remove(&mut self, key: SlotMapIndex) -> Option<T> {
         match self.entries.get_mut(key.slot as usize) {
             Some(entry) => {
@@ -199,6 +310,7 @@ impl<T> SlotMapVec<T> {
         }
     }
 
+    /// Return `true` if a value is associated with the given key.
     pub fn contains(&self, key: SlotMapIndex) -> bool {
         match self.entries.get(key.slot as usize) {
             Some(&Entry { ref version, content: Occupation::Occupied(_) }) => {
@@ -304,21 +416,6 @@ mod tests {
     use super::*;
     #[test]
     fn it_works() {
-        println!("Printing debug test:");
-        let mut x = SlotMapVec::new();
-        println!("X: {:?}", x);
-        x.insert(123213);
-        println!("X: {:?}", x);
-        let mid = x.insert(34234);
-        println!("X: {:?}", x);
-        x.insert(654654);
-        println!("X: {:?}", x);
-        println!("get mid {:?}: {:?}", mid, x.get(mid));
-        x.remove(mid);
-        println!("X: {:?}", x);
-        let ni = x.insert(999);
-        println!("X @ {:?}: {:?}", ni, x);
-        println!("Printing debug test done.");
     }
 
     #[test]
