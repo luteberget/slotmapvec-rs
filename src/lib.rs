@@ -1,7 +1,7 @@
 //! Slot map: array storage with persistent indices
 //!
 //! `Vec<T>`-like collection with stable indices.
-//! The underlying array's indices are re-used by incementing a
+//! The underlying array's indices are re-used by incrementing a
 //! versioning tag in the index type.
 //!
 //! The `SlotMapIndex` type consists of a `u32` for storing the
