@@ -22,8 +22,8 @@
 //! map.remove(idx);
 //! let idx2 = map.insert(999);
 //!
-//! println!("Map {:?}", map);
-//! println!("Index 2 {:?}", idx2);
+//! assert_eq!(map.get(idx), None);
+//! assert_eq!(map.get(idx2), Some(&999));
 //! ```
 
 #![crate_name = "slotmapvec"]
