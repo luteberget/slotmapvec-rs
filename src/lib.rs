@@ -416,6 +416,21 @@ mod tests {
     use super::*;
     #[test]
     fn it_works() {
+        println!("Printing debug test:");
+        let mut x = SlotMapVec::new();
+        println!("X: {:?}", x);
+        x.insert(123213);
+        println!("X: {:?}", x);
+        let mid = x.insert(34234);
+        println!("X: {:?}", x);
+        x.insert(654654);
+        println!("X: {:?}", x);
+        println!("get mid {:?}: {:?}", mid, x.get(mid));
+        x.remove(mid);
+        println!("X: {:?}", x);
+        let ni = x.insert(999);
+        println!("X @ {:?}: {:?}", ni, x);
+        println!("Printing debug test done.");
     }
 
     #[test]
@@ -433,14 +448,6 @@ mod tests {
                  std::mem::size_of::<Entry<u64>>());
         println!("sizeof(Entry<Box<u64>>) == {}",
                  std::mem::size_of::<Entry<Box<u64>>>());
-        println!("sizeof(Entry2<u64>) == {}",
-                 std::mem::size_of::<Entry2<u64>>());
-        println!("sizeof(Entry2<Box<u64>>) == {}",
-                 std::mem::size_of::<Entry2<Box<u64>>>());
-        println!("sizeof(Entry2<u32>) == {}",
-                 std::mem::size_of::<Entry2<u32>>());
-        println!("sizeof(Entry2<Box<u32>>) == {}",
-                 std::mem::size_of::<Entry2<Box<u32>>>());
     }
 
     #[test]
