@@ -1,4 +1,6 @@
-# Slot map: array storage with persistent indices
+*Deprecated*: use [slotmap](https://crates.io/crates/slotmap).
+
+### Slot map: array storage with persistent indices
 
 `Vec<T>`-like collection with stable indices.
 The underlying array's indices are re-used by incrementing a 

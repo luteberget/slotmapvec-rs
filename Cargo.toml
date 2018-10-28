@@ -1,9 +1,9 @@
 [package]
 name = "slotmapvec"
-version = "0.1.2"
+version = "0.1.3"
 license = "MIT"
 authors = ["Bjørnar Luteberget <luteberget@gmail.com>"]
-description = "Array storage with persistent indices"
+description = "Deprecated: use slotmap"
 homepage = "https://github.com/luteberget/slotmapvec-rs"
 repository = "https://github.com/luteberget/slotmapvec-rs"
 readme = "README.md"
